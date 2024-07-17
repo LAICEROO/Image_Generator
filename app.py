@@ -15,7 +15,7 @@ customtkinter.set_default_color_theme("dark-blue")
 
 root = customtkinter.CTk()
 root.title("Image Recognition and Generation")
-root.geometry('1200x720')
+root.geometry('1920x1080')
 
 selected_image = None
 generated_image_bytes = None
@@ -71,13 +71,13 @@ def display_image(file_path):
 
 def display_generated_image_from_bytes(image_bytes):
     image = Image.open(io.BytesIO(image_bytes))
-    image = image.resize((1100, 600), Image.LANCZOS)
+    image = image.resize((720, 720), Image.LANCZOS)
     image_tk = ImageTk.PhotoImage(image)
 
     if hasattr(display_generated_image_from_bytes, 'canvas'):
         display_generated_image_from_bytes.canvas.destroy()
 
-    display_generated_image_from_bytes.canvas = Canvas(tab2, width=1100, height=600)
+    display_generated_image_from_bytes.canvas = Canvas(tab2, width=720, height=720)
     display_generated_image_from_bytes.canvas.pack(pady=20)
     display_generated_image_from_bytes.canvas.create_image(0, 0, anchor='nw', image=image_tk)
     display_generated_image_from_bytes.canvas.image = image_tk
@@ -107,6 +107,17 @@ tabs.pack(pady=20)
 # Add tabs to the CTkTabview
 tab1 = tabs.add("Image Recognition")
 tab2 = tabs.add("Image Generator")
+
+def options_picker(choice):
+    label.configure(text=choice)
+
+options = ["Image Recognition", "Image Generator"]
+
+set_options = customtkinter.CTkOptionMenu(root, values=options,command=options_picker)
+set_options.pack(side=TOP,pady=10)
+
+label = customtkinter.CTkLabel(root, text="")
+label.pack(pady=10)
 
 user_text = customtkinter.CTkTextbox(tab1, width=1000, height=120)
 user_text.pack(side=BOTTOM, pady=20)
