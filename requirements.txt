@@ -1,5 +1,4 @@
-diffusers
-torch
-torch
-customtkinter
-ollama
+streamlit==1.20.0
+requests==2.28.1
+python-dotenv==1.0.0
+Pillow==9.4.0
