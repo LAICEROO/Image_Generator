@@ -1,149 +1,65 @@
-from tkinter import *
-from tkinter import filedialog
-from PIL import Image, ImageTk
-import customtkinter
-from customtkinter import CTkImage
-import ollama
+import os
+from dotenv import load_dotenv
+import streamlit as st
+from PIL import Image
 import requests
 import io
 
-API_URL = "https://api-inference.huggingface.co/models/Kvikontent/midjourney-v6"
-headers = {"Authorization": "Bearer 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"}
+# Load API key from .env file
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
 
-customtkinter.set_appearance_mode("dark")
-customtkinter.set_default_color_theme("dark-blue")
+# Hugging Face API Configuration
+API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2"
+headers = {"Authorization": f"Bearer {API_KEY}"}
 
-root = customtkinter.CTk()
-root.title("Image Recognition and Generation")
-root.geometry('1920x1080')
-
-selected_image = None
-generated_image_bytes = None
-
-def get_user_text(widget):
-    return widget.get("1.0", END).strip()
-
-def request_image_description(entered_text, image_path):
-    if not image_path:
-        return "No image selected."
-    else:
-        res = ollama.chat(
-            model='llava:13b',
-            messages=[
-                {'role': 'user',
-                 'content': entered_text,
-                 'images': [image_path]
-                 }
-            ]
-        )
-        return res['message']['content']
-
-def button_click_image_recognition():
-    entered_text = get_user_text(user_text)
-    response_text = request_image_description(entered_text, selected_image)
-    user_text.insert(END, f"\nResponse: {response_text}")
-
-def button_click_image_generation():
-    entered_text2 = get_user_text(user_text2)
-    global generated_image_bytes
-    generated_image_bytes = query_image_generation({"inputs": entered_text2})
-    if generated_image_bytes:
-        display_generated_image_from_bytes(generated_image_bytes)
-    else:
-        user_text2.insert(END, "\nNo image bytes received.")
-
-def open_file():
-    global selected_image
-    file_path = filedialog.askopenfilename(title="Select an image file", filetypes=[("Image files", "*.jpg;*.jpeg;*.png;*.gif;*.bmp")])
-    if file_path:
-        selected_image = file_path
-        display_image(file_path)
-
-def display_image(file_path):
-    img = Image.open(file_path)
-    img = img.resize((1100, 600), Image.LANCZOS)
-    img_ctk = ImageTk.PhotoImage(img)
-    if hasattr(display_image, 'label'):
-        display_image.label.destroy()
-    display_image.label = customtkinter.CTkLabel(tab1, image=img_ctk)
-    display_image.label.image = img_ctk
-    display_image.label.pack(pady=20)
-
-def display_generated_image_from_bytes(image_bytes):
-    image = Image.open(io.BytesIO(image_bytes))
-    image = image.resize((720, 720), Image.LANCZOS)
-    image_tk = ImageTk.PhotoImage(image)
-
-    if hasattr(display_generated_image_from_bytes, 'canvas'):
-        display_generated_image_from_bytes.canvas.destroy()
-
-    display_generated_image_from_bytes.canvas = Canvas(tab2, width=720, height=720)
-    display_generated_image_from_bytes.canvas.pack(pady=20)
-    display_generated_image_from_bytes.canvas.create_image(0, 0, anchor='nw', image=image_tk)
-    display_generated_image_from_bytes.canvas.image = image_tk
-
-def query_image_generation(payload):
-    response = requests.post(API_URL, headers=headers, json=payload)
+# Function to query the Hugging Face model for image generation
+def query_image_generation(prompt):
+    response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
     if response.status_code == 200:
-        return response.content
+        return response.content  # Returns the image bytes
     else:
-        print("Error:", response.status_code)
-        print("Response:", response.text)
+        st.error(f"Error {response.status_code}: {response.text}")
         return None
 
-def download_image():
-    global generated_image_bytes
-    if generated_image_bytes:
-        image = Image.open(io.BytesIO(generated_image_bytes))
-        image.save("generated_image.png")
-        print("Image saved as generated_image.png")
-    else:
-        print("No image to save.")
+# Function to display an image in Streamlit
+def display_image_from_bytes(image_bytes, caption="Generated Image"):
+    image = Image.open(io.BytesIO(image_bytes))
+    st.image(image, caption=caption, use_container_width=True)
 
-# Create the tabs with specified width and height
-tabs = customtkinter.CTkTabview(root, width=1200, height=720)
-tabs.pack(pady=20)
+# Streamlit App Layout
+st.title("Chat  ")
 
-# Add tabs to the CTkTabview
-tab1 = tabs.add("Image Recognition")
-tab2 = tabs.add("Image Generator")
+# Sidebar for Navigation
+st.sidebar.title("Options")
+choice = st.sidebar.radio("Select an Option", ["Text Generation", "Image Generation"])
 
-def options_picker(choice):
-    label.configure(text=choice)
+# Image Generation Section
+if "generated_image_bytes" not in st.session_state:
+    st.session_state.generated_image_bytes = None
 
-options = ["Image Recognition", "Image Generator"]
+if choice == "Text Generation":
+    st.header("Text Generation")
+    user_prompt = st.text_area("Write your question here")
 
-set_options = customtkinter.CTkOptionMenu(root, values=options,command=options_picker)
-set_options.pack(side=TOP,pady=10)
+elif choice == "Image Generation":
+    st.header("Image Generation - Stable Diffusion")
+    user_prompt = st.text_area("Describe the image you want to generate:")
 
-label = customtkinter.CTkLabel(root, text="")
-label.pack(pady=10)
+    if st.button("Generate Image"):
+        if user_prompt.strip():
+            generated_image_bytes = query_image_generation(user_prompt)
+            if generated_image_bytes:
+                st.session_state.generated_image_bytes = generated_image_bytes  # Save to session state
+                image = Image.open(io.BytesIO(generated_image_bytes))
+                st.image(image, caption="Generated Image", use_container_width=True)
+        else:
+            st.warning("Please enter a description to generate an image.")
 
-user_text = customtkinter.CTkTextbox(tab1, width=1000, height=120)
-user_text.pack(side=BOTTOM, pady=20)
-
-user_text2 = customtkinter.CTkTextbox(tab2, width=1000, height=120)
-user_text2.pack(side=BOTTOM, pady=20)
-
-# Create a frame to hold the buttons
-button_frame1 = customtkinter.CTkFrame(tab1)
-button_frame1.pack(side=BOTTOM, pady=10)
-
-# Create and pack buttons inside the frame for Image Recognition tab
-file_button = customtkinter.CTkButton(button_frame1, text="Open File", command=open_file)
-file_button.pack(side=LEFT, padx=10)
-
-button_recognition = customtkinter.CTkButton(button_frame1, text="Send", command=button_click_image_recognition)
-button_recognition.pack(side=RIGHT, padx=10)
-
-# Create a frame to hold the buttons for the Image Generator tab
-button_frame2 = customtkinter.CTkFrame(tab2)
-button_frame2.pack(side=BOTTOM, pady=10)
-
-button_generation = customtkinter.CTkButton(button_frame2, text="Send", command=button_click_image_generation)
-button_generation.pack(side=LEFT, padx=10)
-
-button_download = customtkinter.CTkButton(button_frame2, text="Download", command=download_image)
-button_download.pack(side=RIGHT, padx=10)
-
-root.mainloop()
+    if st.button("Download Generated Image"):
+        if st.session_state.generated_image_bytes:  # Retrieve from session state
+            image = Image.open(io.BytesIO(st.session_state.generated_image_bytes))
+            image.save("generated_image.png")
+            st.success("Image saved as generated_image.png")
+        else:
+            st.warning("No image to save. Please generate an image first.")
